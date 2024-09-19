@@ -1,0 +1,13 @@
+{
+    "version": "0.0.1",
+    "apiVersion": "1.0.0",
+    "author": "Nirav Agrawal",
+    "name": "Bluetooth HCI Utility",
+	"description": "Prepare & Forward Bluetooth HCI H4 Packets to Ellisys UDP HCI-Inject Interface",
+    "extensions": {
+        "Bluetooth HCI Inject to Ellisys": {
+            "type": "HighLevelAnalyzer",
+            "entryPoint": "bluetooth_hci_capture.BT_HCI"
+        }
+    }
+}
