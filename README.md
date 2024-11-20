@@ -19,3 +19,5 @@ D) Once both HCI Instance added with correct async_serial instance linked to it,
 E) This extension supports monitoring up to 3 HCI interfaces (which will needs total 6 instances to be added for both UART TX and UART RX). 
 
 F) User can update UDP port if default port is not available. Extension provides port change in range of 24352-24360.
+
+G) Enable/Disable Console HCI Dump while configuring HCI instance.

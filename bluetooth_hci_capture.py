@@ -18,6 +18,11 @@ HCI_OVERVIEW_CHOICES = {
   HCI_OVERVIEW_CHOICE3
 }
 
+TERMINAL_DISPLAY_CHOICES = {
+  "Yes",
+  "No"
+}
+
 class Ellysis_Hci_Injection:
     _instance = None
     ellisys_sock = None
@@ -56,7 +61,7 @@ class Ellysis_Hci_Injection:
         dt_day = datetime(dt.year, dt.month, dt.day)
         timestamp_ns = (dt.timestamp() - dt_day.timestamp()) * 1000000000
         #delta = float(timestamp_ns - self.timestamp_ns_prev)/1000000
-        print(str(dt))
+        #print(str(dt))
         self.timestamp_ns_prev = timestamp_ns
 
         send_data += ((0x02).to_bytes(length=1, byteorder='little', signed=False))
@@ -83,9 +88,9 @@ class Ellysis_Hci_Injection:
         # HciPacketData
         send_data += ((0x82).to_bytes(length=1, byteorder='little', signed=False))
         send_data += (data)
-        #print("[")
+        #print("-----------------------------")
         #print(''.join( [ "%02X " % x for x in send_data ] ).strip())
-        #print ("]")
+        #print("-----------------------------")
         self.send_to_sock(send_data)    
 
 class BT_HCI(HighLevelAnalyzer):
@@ -97,9 +102,13 @@ class BT_HCI(HighLevelAnalyzer):
     start_time_curr = None
     incoming = False
     detected = False
+    hci_path = "CMD"
+    hci_instance_str = None
     hci_instance = 0
     ellysis_hci_inj_obj = None
+    terminal_display = False
     Ellisys_HCI_Injection_Overview = ChoicesSetting(choices= HCI_OVERVIEW_CHOICES )
+    display_hci_packets_on_terminal = ChoicesSetting(choices= TERMINAL_DISPLAY_CHOICES )
     Ellisys_UDP_Port_Optional = NumberSetting(min_value = 24352, max_value = 24360)
 
     def __new__(self, *args, **kwargs):
@@ -108,13 +117,22 @@ class BT_HCI(HighLevelAnalyzer):
         return self._instance
         
     def __init__(self):
-        print("Settings:", self.Ellisys_HCI_Injection_Overview, int(self.Ellisys_UDP_Port_Optional))
+        print("Settings:", self.Ellisys_HCI_Injection_Overview, self.display_hci_packets_on_terminal, int(self.Ellisys_UDP_Port_Optional))
         if HCI_OVERVIEW_CHOICE2 in self.Ellisys_HCI_Injection_Overview:
             self.hci_instance = 1
+            self.hci_instance_str = "[HCI Secondary]"
         elif HCI_OVERVIEW_CHOICE3 in self.Ellisys_HCI_Injection_Overview:
             self.hci_instance = 2
+            self.hci_instance_str = "[HCI Tertiary ]"
         else:
             self.hci_instance = 0
+            self.hci_instance_str = "[HCI Primary  ]"
+        
+        if "Yes" in self.display_hci_packets_on_terminal:
+            self.terminal_display = True
+        else:
+            self.terminal_display = False
+
         #print("self.hci_instance:", self.hci_instance)
         self.ellysis_hci_inj_obj = Ellysis_Hci_Injection(port = int(self.Ellisys_UDP_Port_Optional))
 
@@ -130,7 +148,7 @@ class BT_HCI(HighLevelAnalyzer):
                 # Skip any eHCI low power packets
                 return
             if not byte in [1,2,4,5]:
-                print ("Invalid packet type %x, , incoming %u" % (byte, self.incoming))
+                #print ("Invalid packet type %x, , incoming %u" % (byte, self.incoming))
                 return
             self.type = byte
             if self.start_time_curr is not None:
@@ -180,24 +198,30 @@ class BT_HCI(HighLevelAnalyzer):
         return False
 
     def byte_to_str(self):
-        return ''.join( [ "%02X " % x for x in self.data ] ).strip()
+        return ''.join( [ "%02X" % x for x in self.data ] ).strip()
 
     def packet_log_type_for_hci_type_and_incoming(self):
         packet_log_type = -1
         if self.type == 1:
             packet_log_type = 0x01
+            self.hci_path = "CMD    "
         elif self.type == 0x02:
             if self.incoming:
                 packet_log_type = 0x82
+                self.hci_path = "ACL RES"
             else:
                 packet_log_type = 0x02
+                self.hci_path = "ACL REQ"
         elif self.type == 0x04:
             packet_log_type = 0x84
+            self.hci_path = "EVENT  "
         elif self.type == 5:
             if self.incoming:
                 packet_log_type = 0x85
+                self.hci_path = "ISO IN "
             else:
                 packet_log_type = 0x05
+                self.hci_path = "ISO OUT"
         else:
             print('packet type %x' % self.type)
         return packet_log_type
@@ -211,5 +235,7 @@ class BT_HCI(HighLevelAnalyzer):
           self.process_byte(int.from_bytes(data.data[key], 'little'), data.start_time)
           if self.packet_complete():
              packet_log_type = self.packet_log_type_for_hci_type_and_incoming()
+             if self.terminal_display == True:
+                print("{}[{} {}]".format(self.hci_instance_str, self.hci_path, (len(self.data) + 1)), self.byte_to_str())
              self.ellysis_hci_inj_obj.generate_packet_n_send(packet_log_type,self.data,self.timestamp, self.hci_instance)
              self.reset()
